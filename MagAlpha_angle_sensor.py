@@ -77,10 +77,12 @@ def rpm_reader(alpha=0.2, deadband=0.5, sleep_s=0.02):
         prev_t = t
         time.sleep(sleep_s)
 
+# disable set_zero() with while loop to enable rpm reading
 set_zero()  # call once at chosen 0°
 while True:
     print(f"{read_deg_zeroed():.2f} deg")
     time.sleep(0.05)
-    
+
+# disable rpm_reader() to read degrees
 # run rpm reader
 # rpm_reader()
