@@ -35,26 +35,18 @@ def read_deg_zeroed():
     return cz * (360.0 / N)
 
 
-def read_counts():
-    resp = bytearray(2)
-    cs.value(0)
-    spi.write_readinto(b'\x00\x00', resp)
-    cs.value(1)
-    v = (resp[0] << 8) | resp[1]
-    return (v >> 2) & 0x3FFF  # 14-bit angle (0..16383)
-
 def rpm_reader(alpha=0.2, deadband=0.5, sleep_s=0.02):
     
     #alpha: 0..1, higher = less smoothing
     #deadband: clamp tiny RPMs to 0 to kill jitter (in RPM)
     #sleep_s: print/update interval; lower -> higher trackable RPM
     
-    prev_c = read_counts()
+    prev_c = read_angle_counts()
     prev_t = time.ticks_us()
     rpm_filt = 0.0
 
     while True:
-        c = read_counts()
+        c = read_angle_counts()
         t = time.ticks_us()
         dt = time.ticks_diff(t, prev_t) / 1000000.0
         if dt <= 0:
@@ -62,20 +54,22 @@ def rpm_reader(alpha=0.2, deadband=0.5, sleep_s=0.02):
 
         # unwrap smallest signed delta in counts
         dc = ((c - prev_c + (N // 2)) % N) - (N // 2)
-
-        rev = dc / N
-        rpm = (rev / dt) * 60.0  # signed RPM
-
-        # optional deadband to suppress jitter near zero
-        if abs(rpm) < deadband:
-            rpm = 0.0
-
-
-        print("RPM: {:8.2f} ".format(rpm))
+            
+        # remove jitter so it doesn't show negative value when shaft stops    
+        rpm_inst = ( (dc / N) / dt ) * 60.0
+        rpm_filt = (1 - alpha) * rpm_filt + alpha * rpm_inst
+        
+        if abs(rpm_filt) < deadband:
+            rpm_out = 0.0
+        else:
+            rpm_out = rpm_filt
+        
+        print(f"RPM: {rpm_out:8.2f}")
 
         prev_c = c
         prev_t = t
         time.sleep(sleep_s)
+
 
 # disable set_zero() with while loop to enable rpm reading
 set_zero()  # call once at chosen 0°
